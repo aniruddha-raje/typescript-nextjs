@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -12,7 +11,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import { apiErrorMessage, API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
 import {
   getHealthcheck,
   getVersion,
@@ -27,39 +27,23 @@ interface Stats {
   postCount: number | null;
 }
 
+// Module scope keeps the reference stable across renders, as useAsyncData requires.
+async function fetchStats(): Promise<Stats> {
+  const [health, version] = await Promise.all([getHealthcheck(), getVersion()]);
+  // User/post counts are best-effort — don't fail the whole page on them.
+  let userCount: number | null = null;
+  let postCount: number | null = null;
+  try {
+    userCount = (await listUsers()).length;
+    postCount = (await listPosts()).length;
+  } catch {
+    /* ignore — counts stay null */
+  }
+  return { health: health.status, version: version.version, userCount, postCount };
+}
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [health, version] = await Promise.all([
-        getHealthcheck(),
-        getVersion(),
-      ]);
-      // User/post counts are best-effort — don't fail the whole page on them.
-      let userCount: number | null = null;
-      let postCount: number | null = null;
-      try {
-        userCount = (await listUsers()).length;
-        postCount = (await listPosts()).length;
-      } catch {
-        /* ignore — counts stay null */
-      }
-      setStats({ health: health.status, version: version.version, userCount, postCount });
-    } catch (e) {
-      setError(apiErrorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: stats, loading, error } = useAsyncData(fetchStats);
 
   if (loading) {
     return (

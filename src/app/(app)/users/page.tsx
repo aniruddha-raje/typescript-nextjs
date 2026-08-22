@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -29,12 +29,19 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import { apiErrorMessage, type User } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
 import { createUser, deleteUser, getUser, listUsers } from "@/lib/services";
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    loading,
+    error,
+    refresh: reload,
+    setData: setUsers,
+    setError,
+  } = useAsyncData(listUsers);
+  const users = data ?? [];
   const [toast, setToast] = useState<string | null>(null);
 
   // Create dialog state.
@@ -53,19 +60,12 @@ export default function UsersPage() {
   const [searching, setSearching] = useState(false);
   const [filtered, setFiltered] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Clears the search filter, then refetches the full list.
+  const refresh = async () => {
     setFiltered(false);
     setSearchId("");
-    try {
-      setUsers(await listUsers());
-    } catch (e) {
-      setError(apiErrorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await reload();
+  };
 
   const handleSearch = async () => {
     const id = Number(searchId);
@@ -85,10 +85,6 @@ export default function UsersPage() {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
   const handleCreate = async () => {
     setSaving(true);
     setFormError(null);
@@ -101,7 +97,7 @@ export default function UsersPage() {
       setCreateOpen(false);
       setNewUsername("");
       setNewBio("");
-      await load();
+      await refresh();
     } catch (e) {
       setFormError(apiErrorMessage(e));
     } finally {
@@ -116,7 +112,7 @@ export default function UsersPage() {
       await deleteUser(deleteTarget.id);
       setToast(`User "${deleteTarget.username}" deleted`);
       setDeleteTarget(null);
-      await load();
+      await refresh();
     } catch (e) {
       setToast(apiErrorMessage(e));
     } finally {
@@ -129,7 +125,7 @@ export default function UsersPage() {
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
         <Typography variant="h5">Users</Typography>
         <Stack direction="row" spacing={1}>
-          <Button startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
+          <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading}>
             Refresh
           </Button>
           <Button
@@ -179,7 +175,7 @@ export default function UsersPage() {
             {searching ? "Searching…" : "Search"}
           </Button>
           {filtered && (
-            <Button onClick={load} disabled={loading}>
+            <Button onClick={refresh} disabled={loading}>
               Clear
             </Button>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -27,6 +27,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { apiErrorMessage, type Post, type User } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
 import {
   createPost,
   listPosts,
@@ -37,11 +38,16 @@ import {
 
 type EditState = { mode: "create" } | { mode: "edit"; post: Post } | null;
 
+// Module scope keeps the reference stable across renders, as useAsyncData requires.
+async function fetchPostsAndUsers(): Promise<{ posts: Post[]; users: User[] }> {
+  const [posts, users] = await Promise.all([listPosts(), listUsers()]);
+  return { posts, users };
+}
+
 export default function PostsPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refresh } = useAsyncData(fetchPostsAndUsers);
+  const posts = data?.posts ?? [];
+  const users = data?.users ?? [];
   const [toast, setToast] = useState<string | null>(null);
 
   // Editor dialog — shared by create and edit.
@@ -51,27 +57,6 @@ export default function PostsPage() {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [postsData, usersData] = await Promise.all([
-        listPosts(),
-        listUsers(),
-      ]);
-      setPosts(postsData);
-      setUsers(usersData);
-    } catch (e) {
-      setError(apiErrorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openCreate = () => {
     setEditState({ mode: "create" });
@@ -118,7 +103,7 @@ export default function PostsPage() {
         setToast(`Post #${post.id} updated`);
       }
       setEditState(null);
-      await load();
+      await refresh();
     } catch (e) {
       setFormError(apiErrorMessage(e));
     } finally {
@@ -131,7 +116,7 @@ export default function PostsPage() {
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
         <Typography variant="h5">Posts</Typography>
         <Stack direction="row" spacing={1}>
-          <Button startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
+          <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading}>
             Refresh
           </Button>
           <Button

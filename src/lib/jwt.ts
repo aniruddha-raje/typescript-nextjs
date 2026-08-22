@@ -44,7 +44,13 @@ export function decodeToken(token: string): MockTokenClaims | null {
   try {
     const payload = token.split(".")[1];
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(normalized)) as MockTokenClaims;
+    // base64url drops the padding that atob expects.
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    // atob yields one char per byte, so the UTF-8 has to be decoded back —
+    // mirroring the TextEncoder in base64UrlEncode above. Without this, any
+    // multi-byte character in the payload comes back as mojibake.
+    const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes)) as MockTokenClaims;
   } catch {
     return null;
   }

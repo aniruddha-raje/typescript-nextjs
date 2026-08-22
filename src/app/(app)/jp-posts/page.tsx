@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -35,6 +35,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import { apiErrorMessage, type JPComment, type JPPost } from "@/lib/api";
+import { useAsyncData } from "@/lib/useAsyncData";
 import {
   createJpPost,
   deleteJpPost,
@@ -50,9 +51,15 @@ type EditState =
   | null;
 
 export default function JpPostsPage() {
-  const [posts, setPosts] = useState<JPPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    loading,
+    error,
+    refresh: reload,
+    setData: setPosts,
+    setError,
+  } = useAsyncData(listJpPosts);
+  const posts = data ?? [];
   const [toast, setToast] = useState<string | null>(null);
 
   const [page, setPage] = useState(0);
@@ -76,20 +83,13 @@ export default function JpPostsPage() {
   const [searching, setSearching] = useState(false);
   const [filtered, setFiltered] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Clears the search filter and pagination, then refetches the full list.
+  const refresh = async () => {
     setFiltered(false);
     setSearchId("");
     setPage(0);
-    try {
-      setPosts(await listJpPosts());
-    } catch (e) {
-      setError(apiErrorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    await reload();
+  };
 
   const handleSearch = async () => {
     const id = Number(searchId);
@@ -110,10 +110,6 @@ export default function JpPostsPage() {
       setSearching(false);
     }
   };
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const openCreate = () => {
     setEditState({ mode: "create" });
@@ -193,7 +189,7 @@ export default function JpPostsPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          <Button startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
+          <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading}>
             Refresh
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
@@ -239,7 +235,7 @@ export default function JpPostsPage() {
             {searching ? "Searching…" : "Search"}
           </Button>
           {filtered && (
-            <Button onClick={load} disabled={loading}>
+            <Button onClick={refresh} disabled={loading}>
               Clear
             </Button>
           )}

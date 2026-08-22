@@ -4,9 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { isTokenExpired, mintMockToken } from "@/lib/jwt";
@@ -18,6 +17,44 @@ const TOKEN_STORAGE_KEY = "fastapi_crud_token";
 // fine for a demo mock login, not a substitute for real authentication.)
 const MOCK_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? "admin";
 const MOCK_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "admin";
+
+// ─── localStorage as an external store ───────────────────────────────────────
+//
+// The token lives in localStorage, which React treats as an external store.
+// Reading it with useSyncExternalStore (rather than copying it into state from
+// an effect) keeps the read out of the render path and gives cross-tab sync
+// for free: signing out in one tab signs out the others.
+
+const listeners = new Set<() => void>();
+
+/** Notify subscribers after we change the token in this tab. */
+function emitTokenChange() {
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(onStoreChange: () => void): () => void {
+  listeners.add(onStoreChange);
+  // `storage` only fires in *other* tabs, hence the local listener set above.
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    listeners.delete(onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
+
+/** Snapshot must be a stable primitive — localStorage.getItem returns one. */
+function getSnapshot(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+/**
+ * There is no token on the server. `undefined` (as opposed to `null`) marks
+ * "not read yet", which is what `isReady` reports — it lets the layouts hold
+ * off redirecting until the real value has arrived on the client.
+ */
+function getServerSnapshot(): undefined {
+  return undefined;
+}
 
 interface AuthContextValue {
   token: string | null;
@@ -33,33 +70,29 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const stored = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
-  // Rehydrate from localStorage on first mount.
-  useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (stored && !isTokenExpired(stored)) {
-      setToken(stored);
-    } else if (stored) {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-    }
-    setIsReady(true);
-  }, []);
+  const isReady = stored !== undefined;
+  // An expired token counts as no token. It is left in storage until the next
+  // login or logout overwrites it; nothing reads it while it is expired.
+  const token = stored && !isTokenExpired(stored) ? stored : null;
 
   const login = useCallback((username: string, password: string): string | null => {
     if (username !== MOCK_USERNAME || password !== MOCK_PASSWORD) {
       return "Invalid username or password.";
     }
-    const newToken = mintMockToken(username);
-    localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-    setToken(newToken);
+    localStorage.setItem(TOKEN_STORAGE_KEY, mintMockToken(username));
+    emitTokenChange();
     return null;
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
-    setToken(null);
+    emitTokenChange();
   }, []);
 
   const value = useMemo<AuthContextValue>(
