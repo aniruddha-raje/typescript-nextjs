@@ -81,11 +81,51 @@ export async function createPost(
   return data.data;
 }
 
+export interface UpdatePostPayload {
+  title?: string;
+  content?: string | null;
+}
+
+/**
+ * Partially update a post (PATCH /posts/{id}).
+ *
+ * Only the keys present in `payload` are sent. The backend reads the body with
+ * `exclude_unset`, so an omitted key leaves that field untouched, while an
+ * explicit `content: null` clears it. A null `title` is rejected with a 422.
+ */
+export async function updatePost(
+  postId: number,
+  payload: UpdatePostPayload,
+): Promise<Post> {
+  const { data } = await api.patch<APIResponse<Post>>(
+    `/posts/${postId}`,
+    payload,
+  );
+  return data.data;
+}
+
 // ─── Profiles ────────────────────────────────────────────────────────────────
 
 export async function getProfile(userId: number): Promise<Profile> {
   const { data } = await api.get<APIResponse<Profile>>(`/profiles/${userId}`);
   return data.data;
+}
+
+/**
+ * Create or replace a user's profile (PUT /profiles/{user_id}).
+ *
+ * The backend upserts, so this also works for a user that has no profile yet;
+ * it answers 201 on create and 200 on replace, which `created` reflects. A
+ * user id that does not exist comes back as a 404.
+ */
+export async function upsertProfile(
+  userId: number,
+  bio: string,
+): Promise<{ profile: Profile; created: boolean }> {
+  const response = await api.put<APIResponse<Profile>>(`/profiles/${userId}`, {
+    bio,
+  });
+  return { profile: response.data.data, created: response.status === 201 };
 }
 
 // ─── JSONPlaceholder proxy ───────────────────────────────────────────────────

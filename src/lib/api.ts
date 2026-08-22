@@ -50,6 +50,11 @@ export function apiErrorMessage(error: unknown): string {
   return "An unexpected error occurred.";
 }
 
+/** True if the error is an HTTP 404 from the API. */
+export function isNotFound(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 404;
+}
+
 // ─── Shared types ───────────────────────────────────────────────────────────
 
 export interface APIResponse<T> {

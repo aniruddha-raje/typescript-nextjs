@@ -9,6 +9,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Snackbar from "@mui/material/Snackbar";
@@ -20,11 +21,21 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { apiErrorMessage, type Post, type User } from "@/lib/api";
-import { createPost, listPosts, listUsers } from "@/lib/services";
+import {
+  createPost,
+  listPosts,
+  listUsers,
+  updatePost,
+  type UpdatePostPayload,
+} from "@/lib/services";
+
+type EditState = { mode: "create" } | { mode: "edit"; post: Post } | null;
 
 export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -33,7 +44,8 @@ export default function PostsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [open, setOpen] = useState(false);
+  // Editor dialog — shared by create and edit.
+  const [editState, setEditState] = useState<EditState>(null);
   const [userId, setUserId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -61,19 +73,51 @@ export default function PostsPage() {
     load();
   }, [load]);
 
-  const handleCreate = async () => {
+  const openCreate = () => {
+    setEditState({ mode: "create" });
+    setUserId("");
+    setTitle("");
+    setContent("");
+    setFormError(null);
+  };
+
+  const openEdit = (post: Post) => {
+    setEditState({ mode: "edit", post });
+    setTitle(post.title);
+    setContent(post.content ?? "");
+    setFormError(null);
+  };
+
+  const handleSave = async () => {
+    if (!editState) return;
     setSaving(true);
     setFormError(null);
     try {
-      await createPost(Number(userId), {
-        title: title.trim(),
-        content: content.trim() || null,
-      });
-      setToast("Post created");
-      setOpen(false);
-      setTitle("");
-      setContent("");
-      setUserId("");
+      if (editState.mode === "create") {
+        await createPost(Number(userId), {
+          title: title.trim(),
+          content: content.trim() || null,
+        });
+        setToast("Post created");
+      } else {
+        const { post } = editState;
+        // PATCH is partial: send only what actually changed, so untouched
+        // fields keep their stored value.
+        const nextTitle = title.trim();
+        const nextContent = content.trim() || null;
+        const payload: UpdatePostPayload = {};
+        if (nextTitle !== post.title) payload.title = nextTitle;
+        if (nextContent !== (post.content ?? null)) payload.content = nextContent;
+
+        if (Object.keys(payload).length === 0) {
+          setEditState(null);
+          setSaving(false);
+          return;
+        }
+        await updatePost(post.id, payload);
+        setToast(`Post #${post.id} updated`);
+      }
+      setEditState(null);
       await load();
     } catch (e) {
       setFormError(apiErrorMessage(e));
@@ -93,7 +137,7 @@ export default function PostsPage() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setOpen(true)}
+            onClick={openCreate}
             disabled={users.length === 0}
           >
             New Post
@@ -118,12 +162,13 @@ export default function PostsPage() {
                 <TableCell>ID</TableCell>
                 <TableCell>Title</TableCell>
                 <TableCell>Content</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {posts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={4} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
                       No posts yet.
                     </Typography>
@@ -135,6 +180,17 @@ export default function PostsPage() {
                     <TableCell>{post.id}</TableCell>
                     <TableCell>{post.title}</TableCell>
                     <TableCell>{post.content ?? "—"}</TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit post">
+                        <IconButton
+                          size="small"
+                          onClick={() => openEdit(post)}
+                          aria-label={`Edit post ${post.id}`}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -144,29 +200,35 @@ export default function PostsPage() {
       )}
 
       <Dialog
-        open={open}
-        onClose={() => !saving && setOpen(false)}
+        open={Boolean(editState)}
+        onClose={() => !saving && setEditState(null)}
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Create Post</DialogTitle>
+        <DialogTitle>
+          {editState?.mode === "edit"
+            ? `Edit Post #${editState.post.id}`
+            : "Create Post"}
+        </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             {formError && <Alert severity="error">{formError}</Alert>}
-            <TextField
-              select
-              label="Author"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              fullWidth
-              required
-            >
-              {users.map((u) => (
-                <MenuItem key={u.id} value={String(u.id)}>
-                  {u.username} (#{u.id})
-                </MenuItem>
-              ))}
-            </TextField>
+            {editState?.mode === "create" && (
+              <TextField
+                select
+                label="Author"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                fullWidth
+                required
+              >
+                {users.map((u) => (
+                  <MenuItem key={u.id} value={String(u.id)}>
+                    {u.username} (#{u.id})
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
             <TextField
               label="Title"
               value={title}
@@ -185,15 +247,23 @@ export default function PostsPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={saving}>
+          <Button onClick={() => setEditState(null)} disabled={saving}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={handleCreate}
-            disabled={saving || !userId || !title.trim()}
+            onClick={handleSave}
+            disabled={
+              saving ||
+              !title.trim() ||
+              (editState?.mode === "create" && !userId)
+            }
           >
-            {saving ? "Saving…" : "Create"}
+            {saving
+              ? "Saving…"
+              : editState?.mode === "edit"
+                ? "Save changes"
+                : "Create"}
           </Button>
         </DialogActions>
       </Dialog>
