@@ -35,7 +35,7 @@ NEXT_PUBLIC_ADMIN_PASSWORD=admin
 
 ## Tech stack
 
-Next.js 16 (App Router) · TypeScript · MUI v7 · React Context API · Axios
+Next.js 16 (App Router) · TypeScript · MUI v9 · React Context API · Axios
 
 ## Layout
 
