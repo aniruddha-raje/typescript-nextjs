@@ -24,6 +24,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       if (window.location.pathname !== "/login") {
+        // A hard navigation on purpose: this runs inside an axios interceptor,
+        // outside React, where useRouter() is unavailable — and a full reload is
+        // what we want anyway, to drop any state belonging to the signed-out user.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = "/login";
       }
     }
