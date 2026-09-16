@@ -52,7 +52,7 @@ export default function LoginPage() {
             <Avatar sx={{ bgcolor: "primary.main" }}>
               <LockOutlinedIcon />
             </Avatar>
-            <Typography variant="h5">Next.js TypeScript App</Typography>
+            <Typography variant="h5">TypeScript Next.js</Typography>
             <Typography variant="body2" color="text.secondary">
               Sign in to continue
             </Typography>

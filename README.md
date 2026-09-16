@@ -1,4 +1,4 @@
-# Next.js TypeScript App
+# TypeScript Next.js
 
 A **Next.js + TypeScript** admin UI for the [demo backend API](../FastAPI-crud).
 Built with **MUI** for the interface and the **React Context API** for auth state.

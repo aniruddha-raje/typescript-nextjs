@@ -6,8 +6,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import theme from "@/lib/theme";
 
 export const metadata: Metadata = {
-  title: "Next.js TypeScript App",
-  description: "Admin console for the Next.js TypeScript App",
+  title: "TypeScript Next.js",
+  description: "Admin console for the TypeScript Next.js app",
 };
 
 export default function RootLayout({
