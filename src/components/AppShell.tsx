@@ -65,7 +65,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           color="primary"
           sx={{ fontSize: "1.05rem" }}
         >
-          Next.js TypeScript App
+          TypeScript Next.js
         </Typography>
       </Toolbar>
       <Divider />
@@ -105,7 +105,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             {NAV_ITEMS.find(
               (i) => pathname === i.href || pathname.startsWith(`${i.href}/`),
-            )?.label ?? "Next.js TypeScript App"}
+            )?.label ?? "TypeScript Next.js"}
           </Typography>
           <Typography variant="body2" sx={{ mr: 1, opacity: 0.9 }}>
             {username}
